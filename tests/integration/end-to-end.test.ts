@@ -35,13 +35,24 @@ function runAction(cwd: string, inputs: Record<string, string>): RunResult {
   const stateFile = path.join(os.tmpdir(), `github-state-${Date.now()}`)
   fs.writeFileSync(stateFile, '')
 
-  const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
-    GITHUB_OUTPUT: outputFile,
-    GITHUB_STATE: stateFile,
-    MISE_YES: '1',
-    MISE_EXPERIMENTAL: '1',
+  // Build env from process.env, filtering out undefined values (Node.js
+  // process.env can have undefined entries that break execSync env passing)
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      env[key] = value
+    }
   }
+  // Strip any inherited INPUT_* vars to avoid interference
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('INPUT_')) {
+      delete env[key]
+    }
+  }
+  env.GITHUB_OUTPUT = outputFile
+  env.GITHUB_STATE = stateFile
+  env.MISE_YES = '1'
+  env.MISE_EXPERIMENTAL = '1'
 
   // Map inputs to INPUT_* env vars
   for (const [key, value] of Object.entries(inputs)) {
