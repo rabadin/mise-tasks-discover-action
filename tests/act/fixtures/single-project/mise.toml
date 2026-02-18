@@ -1,0 +1,19 @@
+[tasks."ci:build"]
+description = "Build the project"
+run = "echo building"
+sources = ["src/**/*.ts"]
+outputs = ["dist/index.js"]
+
+[tasks."ci:build:docker"]
+description = "Build Docker image"
+run = "echo docker"
+sources = ["Dockerfile"]
+outputs = ["docker://myapp:latest"]
+
+[tasks."ci:test"]
+description = "Run tests"
+run = "echo testing"
+
+[tasks."ci:lint"]
+description = "Lint code"
+run = "echo linting"

@@ -1,0 +1,67 @@
+name: Test mise-tasks-discover
+on: [push]
+
+jobs:
+  test-single-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy fixture mise.toml to workspace root
+        run: cp tests/act/fixtures/single-project/mise.toml .
+
+      - name: Create dummy source files
+        run: |
+          mkdir -p src
+          echo 'console.log("hello")' > src/app.ts
+          echo 'FROM node:20' > Dockerfile
+
+      - name: Discover ci:build tasks
+        id: discover-build
+        uses: ./
+        with:
+          task-prefix: ci:build
+
+      - name: Verify build output
+        run: |
+          echo "projects=${{ steps.discover-build.outputs.projects }}"
+          projects='${{ steps.discover-build.outputs.projects }}'
+          count=$(echo "$projects" | jq length)
+          echo "Project count: $count"
+          [ "$count" -eq 1 ] || { echo "FAIL: expected 1 project, got $count"; exit 1; }
+
+          project=$(echo "$projects" | jq -r '.[0].project')
+          [ "$project" = "." ] || { echo "FAIL: expected project '.', got '$project'"; exit 1; }
+
+          tasks=$(echo "$projects" | jq -r '.[0].tasks')
+          echo "$tasks" | grep -q "ci:build" || { echo "FAIL: ci:build not in tasks"; exit 1; }
+          echo "$tasks" | grep -q "ci:build:docker" || { echo "FAIL: ci:build:docker not in tasks"; exit 1; }
+
+          echo "PASS: build discovery correct"
+
+      - name: Discover ci:test tasks
+        id: discover-test
+        uses: ./
+        with:
+          task-prefix: ci:test
+
+      - name: Verify test output
+        run: |
+          projects='${{ steps.discover-test.outputs.projects }}'
+          tasks=$(echo "$projects" | jq -r '.[0].tasks')
+          echo "$tasks" | grep -q "ci:test" || { echo "FAIL: ci:test not in tasks"; exit 1; }
+          echo "PASS: test discovery correct"
+
+      - name: Discover ci:lint tasks
+        id: discover-lint
+        uses: ./
+        with:
+          task-prefix: ci:lint
+
+      - name: Verify lint output
+        run: |
+          projects='${{ steps.discover-lint.outputs.projects }}'
+          tasks=$(echo "$projects" | jq -r '.[0].tasks')
+          echo "$tasks" | grep -q "ci:lint" || { echo "FAIL: ci:lint not in tasks"; exit 1; }
+          echo "PASS: lint discovery correct"

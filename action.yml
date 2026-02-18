@@ -1,0 +1,49 @@
+name: mise-tasks-discover-action
+description: >
+  Discovers mise tasks matching a given prefix, groups them by project,
+  and outputs a JSON array. Optionally filters out tasks whose sources
+  don't overlap with changed files (source-based change detection).
+
+  Task names are passed through as-is from `mise tasks ls`, so they
+  work directly with `mise run` from the repo root.
+
+inputs:
+  task-prefix:
+    description: >
+      Task name prefix to filter on. Only tasks whose local name
+      (monorepo prefix stripped) starts with this value are included.
+      Examples: "build", "ci:build", "" (all tasks).
+    required: false
+    default: ""
+  base-ref:
+    description: >
+      Git ref to diff against for source-based filtering. Tasks whose
+      sources don't overlap with changed files are excluded. Tasks
+      without sources are always included. Leave empty to skip filtering.
+    required: false
+    default: ""
+
+outputs:
+  projects:
+    description: >
+      JSON array. Each entry has: project (path) and tasks
+      (:::-separated task names as returned by mise, usable directly
+      with `mise run` from the repo root). Empty array when no tasks
+      match.
+    value: ${{ steps.discover.outputs.projects }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install mise
+      uses: jdx/mise-action@v2
+      with:
+        experimental: true
+
+    - name: Discover tasks
+      id: discover
+      shell: bash
+      env:
+        INPUT_TASK-PREFIX: ${{ inputs.task-prefix }}
+        INPUT_BASE-REF: ${{ inputs.base-ref }}
+      run: node "${{ github.action_path }}/dist/index.js"

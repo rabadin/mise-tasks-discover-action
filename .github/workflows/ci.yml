@@ -1,0 +1,62 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Lint (type-check)
+        run: mise run lint
+
+      - name: Unit tests
+        run: mise run test
+
+      - name: Build
+        run: mise run build
+
+      - name: Integration tests
+        run: mise run test:integration
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Build
+        run: mise run build
+
+      - name: Discover ci:build tasks
+        id: discover-build
+        uses: ./
+        with:
+          task-prefix: ci:build
+
+      - name: Verify output
+        run: |
+          projects='${{ steps.discover-build.outputs.projects }}'
+          echo "projects=$projects"
+          echo "$projects" | jq . > /dev/null || { echo "FAIL: invalid JSON"; exit 1; }
+          echo "PASS: action produced valid JSON output"

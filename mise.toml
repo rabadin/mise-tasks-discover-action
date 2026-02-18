@@ -1,0 +1,91 @@
+[tools]
+node = "20"
+act = "0.2.84"
+
+[tasks.build]
+description = "Bundle action with ncc"
+run = "npx ncc build --no-cache src/index.ts --license licenses.txt -o dist"
+sources = ["src/**/*.ts", "package.json"]
+outputs = ["dist/index.js"]
+depends = ["install"]
+
+[tasks.test]
+description = "Run unit tests"
+run = "npx jest --coverage"
+depends = ["install"]
+
+[tasks."test:integration"]
+description = "Run integration tests (requires mise + git)"
+run = "npx jest --config jest.integration.config.js"
+depends = ["install", "build"]
+
+[tasks."test:act"]
+description = "Run act-based end-to-end tests"
+run = "act push -W tests/act/test-discover.yml -P ubuntu-latest=catthehacker/ubuntu:act-latest --artifact-server-path /tmp/act-artifacts"
+depends = ["build"]
+
+[tasks."test:all"]
+description = "Run all test layers"
+depends = ["test", "test:integration", "test:act"]
+
+[tasks.lint]
+description = "Type-check with tsc"
+run = "npx tsc --noEmit"
+depends = ["install"]
+
+[tasks.install]
+description = "Install npm dependencies"
+run = "npm install"
+sources = ["package.json", "package-lock.json"]
+outputs = ["node_modules/.package-lock.json"]
+
+[tasks.release]
+description = "Tag and push a new release (use: mise run release [-- --minor|--major])"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+bump_type="patch"
+for arg in "$@"; do
+  case "$arg" in
+    --minor) bump_type="minor" ;;
+    --major) bump_type="major" ;;
+    --patch) bump_type="patch" ;;
+    *) echo "Unknown argument: $arg"; exit 1 ;;
+  esac
+done
+
+# Get latest tag
+latest=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+echo "Latest tag: $latest"
+
+# Parse semver
+version="${latest#v}"
+IFS='.' read -r major minor patch <<< "$version"
+
+case "$bump_type" in
+  major) major=$((major + 1)); minor=0; patch=0 ;;
+  minor) minor=$((minor + 1)); patch=0 ;;
+  patch) patch=$((patch + 1)) ;;
+esac
+
+new_tag="v${major}.${minor}.${patch}"
+major_tag="v${major}"
+minor_tag="v${major}.${minor}"
+
+echo "Bumping $bump_type: $latest -> $new_tag"
+echo "Sliding tags: $major_tag, $minor_tag"
+
+# Create and push the exact version tag
+git tag "$new_tag"
+git push origin "$new_tag"
+
+# Update sliding tags
+git tag -f "$major_tag" "$new_tag"
+git push origin "$major_tag" --force
+
+git tag -f "$minor_tag" "$new_tag"
+git push origin "$minor_tag" --force
+
+echo "Released $new_tag (updated $major_tag and $minor_tag)"
+"""
