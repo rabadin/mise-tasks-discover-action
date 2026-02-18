@@ -119,6 +119,24 @@ function runAction(cwd: string, inputs: Record<string, string>): RunResult {
 }
 
 describe('end-to-end action execution', () => {
+  it('passes INPUT_* env vars to subprocess correctly', () => {
+    // Diagnostic: verify that hyphenated env var names survive execSync
+    const env: Record<string, string> = {}
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) env[key] = value
+    }
+    for (const key of Object.keys(env)) {
+      if (key.startsWith('INPUT_')) delete env[key]
+    }
+    env['INPUT_TASK-PREFIX'] = 'test-value'
+
+    const out = execSync(
+      `node -e "process.stdout.write(process.env['INPUT_TASK-PREFIX'] || 'UNDEFINED')"`,
+      { env, encoding: 'utf-8' }
+    )
+    expect(out).toBe('test-value')
+  })
+
   it('discovers tasks and produces valid JSON output', () => {
     fixture = createFixture({
       miseToml: `
